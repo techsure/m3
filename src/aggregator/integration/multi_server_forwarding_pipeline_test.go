@@ -64,6 +64,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		t.SkipNow()
 	}
 
+	startTime := time.Now()
+
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
 
@@ -194,16 +196,19 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// Start the servers.
 	log := xtest.NewLogger(t)
 	log.Info("test forwarding pipeline")
+	log.Sugar().Infof("starting servers %v", time.Since(startTime))
 	for i, server := range servers {
 		require.NoError(t, server.startServer())
 		log.Sugar().Infof("server %d is now up", i)
 	}
 
+	log.Sugar().Infof("starting clients %v", time.Since(startTime))
 	// Create clients for writing to the servers.
 	client := servers[0].newClient(t)
 	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
+	log.Sugar().Infof("waiting for leadership %v", time.Since(startTime))
 	var (
 		leaders    = make(map[int]struct{})
 		leaderCh   = make(chan int, len(servers)/2)
@@ -304,6 +309,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		metadataFn:   metadataFn,
 	})
 
+	log.Sugar().Infof("writing data %v", time.Since(startTime))
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
 
@@ -316,6 +322,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
+	log.Sugar().Infof("wait for flushing %v", time.Since(startTime))
 	// Move time forward using the larger resolution and wait for flushing to happen
 	// at the originating server (where the raw metrics are aggregated).
 	originatingServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
@@ -332,20 +339,24 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
+	log.Sugar().Infof("remove topic consumers %v", time.Since(startTime))
 	// Remove all the topic consumers before closing clients and servers. This allows to close the
 	// connections between servers while they still are running. Otherwise, during server shutdown,
 	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
 	// results in longer shutdown times.
 	require.NoError(t, removeAllTopicConsumers(topicService, m3msgTopicName))
 
+	log.Sugar().Infof("stop clients %v", time.Since(startTime))
 	// Stop the client.
 	require.NoError(t, client.close())
 
+	log.Sugar().Infof("stop servers %v", time.Since(startTime))
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
 	}
+	log.Sugar().Infof("stopped servers %v", time.Since(startTime))
 
 	// Validate results.
 	var destinationServer *testServerSetup
@@ -432,4 +443,5 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
 	actual := destinationServer.sortedResults()
 	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...))
+	log.Sugar().Infof("finish %v", time.Since(startTime))
 }
