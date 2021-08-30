@@ -22,9 +22,13 @@ package ingest
 
 import (
 	"context"
+	"strings"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -405,6 +409,23 @@ func (d *downsamplerAndWriter) WriteBatch(
 			if value.Metadata.DropUnaggregated {
 				d.metrics.dropped.Inc(1)
 				continue
+			}
+			traceMetric := false
+			for _, t := range value.Tags.Tags {
+				if strings.ToLower(string(t.Name)) == "__name__" && strings.HasPrefix(strings.ToLower(string(t.Value)), "trace_") {
+					traceMetric = true
+					break
+				}
+			}
+			if traceMetric {
+				logger := instrument.NewOptions().Logger()
+				ann := &annotation.Payload{}
+				err := ann.Unmarshal(value.Annotation)
+				if err != nil {
+					logger.Error("## failed to unmarshal annotation", zap.Error(err))
+				} else if ann.MetricType == annotation.MetricType_UNKNOWN || value.Attributes.PromType == ts.PromMetricTypeUnknown {
+					logger.Sugar().Warn("## unknown metric type for metric %#v %#v %#v", value.Tags, ann, value.Attributes)
+				}
 			}
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
