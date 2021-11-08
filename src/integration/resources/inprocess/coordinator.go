@@ -410,8 +410,13 @@ func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Tim
 }
 
 // WriteProm writes a prometheus metric.
-func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	return c.client.WriteProm(name, tags, samples)
+func (c *Coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WriteProm(name, tags, samples, headers)
 }
 
 // RunQuery runs the given query with a given verification function.

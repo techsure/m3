@@ -583,7 +583,12 @@ func (c *CoordinatorClient) WriteCarbon(
 }
 
 // WriteProm writes a prometheus metric.
-func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
+func (c *CoordinatorClient) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers Headers,
+) error {
 	var (
 		url       = c.makeURL("api/v1/prom/remote/write")
 		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
@@ -621,6 +626,15 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 		return err
 	}
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
+	for k, values := range headers {
+		for i, v := range values {
+			if i == 0 {
+				req.Header.Set(k, v)
+				continue
+			}
+			req.Header.Add(k, v)
+		}
+	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {

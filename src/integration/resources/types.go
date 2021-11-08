@@ -61,7 +61,7 @@ type Coordinator interface {
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
-	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
+	WriteProm(name string, tags map[string]string, samples []prompb.Sample, headers Headers) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers
